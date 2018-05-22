@@ -1,10 +1,11 @@
+/*
 #include "string.h"
 #include "espressif/esp_common.h"
 #include "esp/uart.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "i2c/i2c.h"
-#include "secret_constants.h"
+#include "wifi_config/ssid_config.h"
 #include "ota-tftp.h"
 #include "RF24/nRF24L01.h"
 #include "RF24/RF24.h"
@@ -66,3 +67,4 @@ static inline void setup_nrf() {
 	// OTA configuration
 	ota_tftp_init_server(TFTP_PORT);
 }
+*/

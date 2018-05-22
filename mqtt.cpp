@@ -1,3 +1,4 @@
+/*
 #include "paho_mqtt_c/MQTTESP8266.h"
 #include "paho_mqtt_c/MQTTClient.h"
 
@@ -114,4 +115,4 @@ static void mqtt_task(void *pvParameters) {
 		mqtt_network_disconnect(&network);
 		taskYIELD();
 	}
-}
+}*/

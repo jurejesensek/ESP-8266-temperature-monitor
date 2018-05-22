@@ -1,5 +1,4 @@
-secret_constants.h
 build/
 firmware/
 *~
-
+wifi_config/private_ssid_config.h
