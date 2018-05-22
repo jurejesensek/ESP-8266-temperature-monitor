@@ -1,5 +1,7 @@
 #ifndef ESP_8266_TEMPERATURE_MONITOR_CONSTANTS_H
 #define ESP_8266_TEMPERATURE_MONITOR_CONSTANTS_H
+#define MQTT_PORT	1883
+#define MQTT_TOPIC	"dev/test"
 
 namespace TempSensor
 {
