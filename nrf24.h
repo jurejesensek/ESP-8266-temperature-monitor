@@ -1,4 +1,5 @@
-/*
+#ifndef ESP_8266_TEMPERATURE_MONITOR_NRF24_H
+#define ESP_8266_TEMPERATURE_MONITOR_NRF24_H
 #include "string.h"
 #include "espressif/esp_common.h"
 #include "esp/uart.h"
@@ -67,4 +68,5 @@ static inline void setup_nrf() {
 	// OTA configuration
 	ota_tftp_init_server(TFTP_PORT);
 }
-*/
+#endif
+

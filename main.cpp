@@ -17,11 +17,11 @@
 #include <semphr.h>
 #include "wifi_config/ssid_config.h"
 
-#include "nrf24.h"
-//#include "mqtt.h"
+#include "nrf_transmitter.h"
 
 
 TempMonitor::Bmp280_temp_sensor temp_sensor;
+TempMonitor::NRF_transmitter nrf_transmitter;
 
 SemaphoreHandle_t wifi_alive;
 
@@ -31,6 +31,7 @@ void readTemp(void *pvParameters)
 	{
         float temp = temp_sensor.read();
         printf("temp: %f\n", temp);
+		nrf_transmitter.transmit_nrf24();
         vTaskDelay(1000 / portTICK_PERIOD_MS); // sleep
 	}
 }
@@ -103,6 +104,7 @@ void user_setup_hw()
 void other_setup()
 {
     temp_sensor.init();
+	nrf_transmitter.init();
 }
 
 extern "C" void user_init(void); // one way

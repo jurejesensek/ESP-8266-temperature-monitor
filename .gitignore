@@ -2,3 +2,4 @@ build/
 firmware/
 *~
 wifi_config/private_ssid_config.h
+secret_constants.h
