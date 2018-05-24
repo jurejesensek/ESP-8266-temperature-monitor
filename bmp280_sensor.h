@@ -17,13 +17,21 @@ public:
     /**
      * Constructor.
      */
-    Bmp280_temp_sensor();
+    Bmp280_temp_sensor() = default;
 
     /**
      * Initialises the sensor.
+     * Calling <code>initI2C()</code> is not required.
      * @return <code>true</code> if the initialisation was successful, else it returns <code>false</code>.
      */
     bool init();
+
+    /**
+     * Initialises I2C.
+     * Useful when using multiple devices on I2C.
+     * @return <code>true</code> if the initialisation was successful, else it returns <code>false</code>.
+     */
+    bool initI2C();
 
     /**
      * Reads the temperature value from the sensor and returns it.
@@ -33,9 +41,6 @@ public:
     float read();
 
 private:
-
-    /** Is the sensor initialised. */
-    bool valid;
 
     bmp280_t bmp280_dev;
 
