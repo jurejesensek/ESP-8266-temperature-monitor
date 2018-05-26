@@ -12,6 +12,7 @@
 #include "bmp280_sensor.h"
 #include "nrf_comm.h"
 #include "constants.h"
+#include "secret_constants.h"
 
 #include <espressif/esp_sta.h>
 #include <espressif/esp_wifi.h>
@@ -19,8 +20,10 @@
 #include <cstring>
 #include "wifi_config/ssid_config.h"
 
-#include "nrf24.h"
-//#include "mqtt.h"
+extern "C" {
+#include "paho_mqtt_c/MQTTESP8266.h"
+#include "paho_mqtt_c/MQTTClient.h"
+}
 
 TempMonitor::Bmp280_temp_sensor temp_sensor;
 TempMonitor::Nrf_comm nrf_comm;
@@ -92,7 +95,7 @@ void wifi_task(void *pvParameters)
 
 	while (true)
 	{
-        while ((status = sdk_wifi_station_get_connect_status()) != STATION_GOT_IP
+		while ((status = sdk_wifi_station_get_connect_status()) != STATION_GOT_IP
 				&& retries != 0)
 		{
 			printf("wifi status = %d\n", status);
@@ -158,7 +161,6 @@ void user_init(void)
 	other_setup();
 
 	vSemaphoreCreateBinary(wifi_alive);
-	//publish_queue = xQueueCreate(3, PUB_MSG_LEN);
 
     // Create user interface task
 
