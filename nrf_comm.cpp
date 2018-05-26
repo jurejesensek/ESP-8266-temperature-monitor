@@ -35,6 +35,7 @@ bool TempMonitor::Nrf_comm::send(char * data, uint8_t len)
 {
     if (!valid)
     {
+        printf("send(): device not valid\n");
         return false;
     }
     radio.openWritingPipe(ADDRESS);
@@ -47,6 +48,7 @@ bool TempMonitor::Nrf_comm::receive(char *buffer, uint8_t len)
 {
     if (!valid)
     {
+        printf("receive(): device not valid\n");
         return false;
     }
     radio.openReadingPipe(1, ADDRESS);
@@ -56,5 +58,6 @@ bool TempMonitor::Nrf_comm::receive(char *buffer, uint8_t len)
         radio.read(buffer, len);
         return true;
     }
+    printf("receive(): not successful\n");
     return false;
 }

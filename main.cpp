@@ -10,28 +10,70 @@
 #include "rboot-api.h"
 
 #include "bmp280_sensor.h"
+#include "nrf_comm.h"
 #include "constants.h"
 
 #include <espressif/esp_sta.h>
 #include <espressif/esp_wifi.h>
 #include <semphr.h>
+#include <cstring>
 #include "wifi_config/ssid_config.h"
 
 #include "nrf24.h"
 //#include "mqtt.h"
 
-
 TempMonitor::Bmp280_temp_sensor temp_sensor;
+TempMonitor::Nrf_comm nrf_comm;
 
 SemaphoreHandle_t wifi_alive;
 
+bool sender = true;
+
 void readTemp(void *pvParameters)
 {
+    char msg[TempMonitor::NRF_BUFFER_LEN];
+    while (true)
+	{
+	    // todo better error messages
+        if (!temp_sensor.initI2C())
+        {
+            printf("temp sensor init was unsuccessful\n");
+        }
+        float temp = temp_sensor.read();
+        sprintf(msg, "%.03f", temp);
+        printf("read temperature: %s\n", msg);
+        nrf_comm.init();
+        if (!nrf_comm.isValid())
+        {
+            printf("NRF re-init was not successful\n");
+        }
+		if (!nrf_comm.send(msg, static_cast<uint8_t>(strlen(msg))))
+        {
+            printf("NRF sending was not successful\n");
+        }
+        vTaskDelay(pdMS_TO_TICKS(10000)); // sleep
+        nrf_comm.disable();
+	}
+}
+
+void listenNrf(void *pvParameters)
+{
+	char buffer[TempMonitor::NRF_BUFFER_LEN];
 	while (true)
 	{
-        float temp = temp_sensor.read();
-        printf("temp: %f\n", temp);
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // sleep
+	    if (!nrf_comm.isValid())
+        {
+            nrf_comm.init();
+        }
+		if (nrf_comm.receive(buffer, sizeof(buffer)))
+		{
+			printf("NRF received: %s\n", buffer);
+		}
+        else
+        {
+            printf("NRF receive was not successful\n");
+	    }
+		vTaskDelay(pdMS_TO_TICKS(10000));
 	}
 }
 
@@ -50,7 +92,7 @@ void wifi_task(void *pvParameters)
 
 	while (true)
 	{
-		while ((status = sdk_wifi_station_get_connect_status()) != STATION_GOT_IP
+        while ((status = sdk_wifi_station_get_connect_status()) != STATION_GOT_IP
 				&& retries != 0)
 		{
 			printf("wifi status = %d\n", status);
@@ -79,14 +121,14 @@ void wifi_task(void *pvParameters)
 			taskYIELD();
 		}
 
-		while ((status = sdk_wifi_station_get_connect_status()) == STATION_GOT_IP)
+		while (sdk_wifi_station_get_connect_status() == STATION_GOT_IP)
 		{
 			xSemaphoreGive(wifi_alive);
 			taskYIELD();
 		}
 		printf("WiFi: disconnected\n");
 		sdk_wifi_station_disconnect();
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		vTaskDelay(5000 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -94,7 +136,7 @@ void wifi_task(void *pvParameters)
 void user_setup_hw()
 {
     // Set UART Parameter
-    uart_set_baud(0, TempSensor::BAUD_RATE);
+    uart_set_baud(0, TempMonitor::BAUD_RATE);
 
     // Give the UART some time to settle
     sdk_os_delay_us(500);
@@ -102,7 +144,9 @@ void user_setup_hw()
 
 void other_setup()
 {
-    temp_sensor.init();
+	nrf_comm.init();
+	nrf_comm.disable();
+	temp_sensor.init();
 }
 
 extern "C" void user_init(void); // one way
@@ -112,15 +156,21 @@ void user_init(void)
 	user_setup_hw();
 
 	other_setup();
-	
-	//setup_nrf();
+
 	vSemaphoreCreateBinary(wifi_alive);
 	//publish_queue = xQueueCreate(3, PUB_MSG_LEN);
 
     // Create user interface task
-	
+
 	xTaskCreate(&wifi_task, "wifi_task", 265, nullptr, 2, nullptr);
 	//xTaskCreate(&mqtt_task, "mqtt_task", 1024, NULL, 4, NULL);
-    xTaskCreate(readTemp, "readTemp", 265, nullptr, 2, nullptr);
+	if (sender)
+	{
+		xTaskCreate(readTemp, "readTemp", 512, nullptr, 2, nullptr);
+	}
+	else
+	{
+		xTaskCreate(listenNrf, "listenNrf", 512, nullptr, 2, nullptr);
+	}
 
 }
