@@ -11,7 +11,7 @@ TempMonitor::Nrf_comm::Nrf_comm()
 void TempMonitor::Nrf_comm::init()
 {
     uart_set_baud(0, BAUD_RATE);
-    gpio_enable(SCL, GPIO_OUTPUT);
+    gpio_enable(SCL_PIN, GPIO_OUTPUT);
     gpio_enable(CS_NRF, GPIO_OUTPUT);
 
     // radio config
@@ -38,8 +38,8 @@ bool TempMonitor::Nrf_comm::send(char * data, uint8_t len)
         printf("send(): device not valid\n");
         return false;
     }
-    radio.openWritingPipe(ADDRESS);
     radio.stopListening();
+    radio.openWritingPipe(ADDRESS);
     return radio.write(data, len);
     // todo powerDown()
 }
@@ -58,6 +58,6 @@ bool TempMonitor::Nrf_comm::receive(char *buffer, uint8_t len)
         radio.read(buffer, len);
         return true;
     }
-    printf("receive(): not successful\n");
+    printf("receive(): no available data\n");
     return false;
 }

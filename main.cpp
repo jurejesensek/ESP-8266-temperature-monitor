@@ -20,83 +20,184 @@
 #include <cstring>
 #include "wifi_config/ssid_config.h"
 #include "mqtt_client.h"
-
+#include "temperature_message.h"
+#include "device_role.h"
+#include "button_reader.h"
 
 TempMonitor::Bmp280_temp_sensor temp_sensor;
 TempMonitor::Nrf_comm nrf_comm;
 TempMonitor::Mqtt_client mqtt_client;
+TempMonitor::Button_reader button_reader;
+
+TaskHandle_t wifi_task_handle;
+TaskHandle_t listen_nrf_task_handle;
+TaskHandle_t send_nrf_task_handle;
+TaskHandle_t read_temp_task_handle;
+
 
 SemaphoreHandle_t wifi_alive;
+SemaphoreHandle_t i2c_mutex;
+QueueHandle_t publish_queue;
 
-bool sender = true;
+TempMonitor::Device_role device_role;
 
-void readTemp(void *pvParameters)
+/**
+ * Use MAC address for unique ID
+ * @return char* to string containing MAC address.
+ */
+char const * const get_my_id()
 {
-    char msg[TempMonitor::NRF_BUFFER_LEN];
+	static char my_id[TempMonitor::MAC_ADDRESS_STRING_LEN];
+	static bool my_id_done = false;
+	if (my_id_done)
+	{
+		return my_id;
+	}
+	if (!sdk_wifi_get_macaddr(STATION_IF, reinterpret_cast<uint8_t *>(my_id)))
+	{
+		printf("Could not obtain MAC address\n");
+		return nullptr;
+	}
+	for (int8_t i = 5; i >= 0; --i)
+	{
+		uint8_t x = static_cast<uint8_t>(my_id[i] & 0x0F);
+		if (x > 9) x += 7;
+		my_id[i * 2 + 1] = x + '0';
+		x = static_cast<uint8_t>(my_id[i] >> 4);
+		if (x > 9) x += 7;
+		my_id[i * 2] = x + '0';
+	}
+	my_id[TempMonitor::MAC_ADDRESS_STRING_LEN - 1] = '\0';
+	my_id_done = true;
+	return my_id;
+}
+
+void read_temp_task(void *pvParameters)
+{
+    char msg[TempMonitor::TEMPERATURE_STR_LEN];
     while (true)
 	{
-	    // todo better error messages
-        if (!temp_sensor.initI2C())
-        {
-            printf("temp sensor init was unsuccessful\n");
-        }
-        float temp = temp_sensor.read();
-        sprintf(msg, "%.03f", temp);
-        printf("read temperature: %s\n", msg);
-        nrf_comm.init();
-        if (!nrf_comm.isValid())
-        {
-            printf("NRF re-init was not successful\n");
-        }
-		if (!nrf_comm.send(msg, static_cast<uint8_t>(strlen(msg))))
-        {
-            printf("NRF sending was not successful\n");
-        }
+		xSemaphoreTake(i2c_mutex, portMAX_DELAY);
+
+		do
+		{
+			// todo better error messages
+			if (!temp_sensor.initI2C())
+			{
+				printf("temp sensor init was unsuccessful\n");
+				break;
+			}
+			float temp = temp_sensor.read();
+			sprintf(msg, "%.03f", temp);
+			printf("read temperature: %s\n", msg);
+			TempMonitor::Temperature_msg temperature_msg{get_my_id(), msg};
+
+			// don't wait
+			xQueueSendToBack(publish_queue, &temperature_msg, 0);
+		} while (false);
+
+		xSemaphoreGive(i2c_mutex);
+
         vTaskDelay(pdMS_TO_TICKS(10000)); // sleep
-        nrf_comm.disable();
 	}
 }
 
-void listenNrf(void *pvParameters)
+void send_nrf_task(void *pvParameters)
 {
-	char buffer[TempMonitor::NRF_BUFFER_LEN];
 	while (true)
 	{
-	    if (!nrf_comm.isValid())
-        {
-            nrf_comm.init();
-        }
-
-		if (nrf_comm.receive(buffer, sizeof(buffer)))
+		xSemaphoreTake(i2c_mutex, portMAX_DELAY);
+		nrf_comm.init();
+		if (!nrf_comm.isValid())
 		{
-			printf("NRF received: %s\n", buffer);
+			printf("NRF re-init was not successful\n");
+		}
 
-			do
+		while (uxQueueMessagesWaiting(publish_queue) != 0)
+        {
+            TempMonitor::Temperature_msg msg;
+            xQueueReceive(publish_queue, &msg, 0);
+            char message[TempMonitor::MESSAGE_LEN];
+            msg.getMessage(message, TempMonitor::MESSAGE_LEN);
+            if (nrf_comm.send(message, static_cast<uint8_t>(strlen(message))))
+            {
+                printf("sent NRF message %s\n", message);
+            }
+            else
+            {
+                printf("NRF sending was not successful for %s\n", message);
+            }
+        }
+        printf("finished with NRF sending\n");
+		nrf_comm.disable();
+		xSemaphoreGive(i2c_mutex);
+		vTaskDelay(pdMS_TO_TICKS(10000)); // sleep
+	}
+}
+
+void listen_nrf_task(void *pvParameters)
+{
+	char buffer[TempMonitor::MESSAGE_LEN];
+	while (true)
+	{
+	    printf("entering listen_nrf_task\n");
+		do
+		{
+			if (!mqtt_client.init(TempMonitor::MQTT_TEST_TOPIC,
+								  static_cast<uint8_t>(strlen(TempMonitor::MQTT_TEST_TOPIC))))
 			{
-				if (!mqtt_client.init("test", strlen("test")))
-				{
-					printf("unsuccessful client init\n");
-					break;
-				}
-				if (!mqtt_client.connect())
-				{
-					printf("unsuccessful client connect\n");
-					break;
-				}
-				if (!mqtt_client.publish("test_jure", strlen("test_jure")))
+				printf("unsuccessful client init\n");
+				break;
+			}
+			if (!mqtt_client.connect())
+			{
+				printf("unsuccessful client connect\n");
+				mqtt_client.disconnect();
+				break;
+			}
+
+			xSemaphoreTake(i2c_mutex, portMAX_DELAY);
+            nrf_comm.init();
+
+            if (!nrf_comm.isValid())
+            {
+                printf("NRF re-initialisation was not successful\n");
+            }
+
+			// receive all messages
+			while (nrf_comm.receive(buffer, sizeof(buffer)))
+			{
+				printf("NRF received: %s\n", buffer);
+				// publish received messages
+				if (!mqtt_client.publish(buffer, static_cast<const uint8_t>(strlen(buffer))))
 				{
 					printf("unsuccessful client publish\n");
 					break;
 				}
-				printf("successful MQTT send\n");
+			}
+			xSemaphoreGive(i2c_mutex);
+			printf("no more NRF messages waiting\n");
 
-			} while (false);
+			while (uxQueueMessagesWaiting(publish_queue) != 0)
+			{
+				TempMonitor::Temperature_msg msg;
+				xQueueReceive(publish_queue, &msg, 0);
+				char message[TempMonitor::MESSAGE_LEN];
+				msg.getMessage(message, TempMonitor::MESSAGE_LEN);
+				if (!mqtt_client.publish(message, static_cast<const uint8_t>(strlen(message))))
+				{
+					printf("unsuccessful client publish: %s\n", message);
+					break;
+				}
+				printf("published %s\n", message);
+			}
+			printf("published all local temperatures\n");
 
-		}
-        else
-        {
-            printf("NRF receive was not successful\n");
-	    }
+		} while (false);
+
+		// todo use yield()
+		mqtt_client.disconnect();
+
 		vTaskDelay(pdMS_TO_TICKS(10000));
 	}
 }
@@ -156,6 +257,71 @@ void wifi_task(void *pvParameters)
 	}
 }
 
+void switch_role(TempMonitor::Device_role target_role)
+{
+    switch (target_role)
+    {
+    case TempMonitor::NRF_CLIENT:
+        if (device_role == TempMonitor::NRF_CLIENT)
+        {
+            printf("already in NRF client mode\n");
+        }
+        else
+        {
+            device_role = TempMonitor::NRF_CLIENT;
+            vTaskSuspend(listen_nrf_task_handle);
+            vTaskSuspend(wifi_task_handle);
+            vTaskResume(send_nrf_task_handle);
+        }
+        break;
+    case TempMonitor::NRF_SERVER_AND_MQTT_CLIENT:
+        if (device_role == TempMonitor::NRF_SERVER_AND_MQTT_CLIENT)
+        {
+            printf("already in MQTT client mode\n");
+        }
+        else
+        {
+            device_role = TempMonitor::NRF_SERVER_AND_MQTT_CLIENT;
+            vTaskSuspend(send_nrf_task_handle);
+            vTaskResume(wifi_task_handle);
+            vTaskResume(listen_nrf_task_handle);
+        }
+        break;
+
+    default:
+        printf("invalid mode\n");
+    }
+}
+
+void button_poll_task(void *pvParameter)
+{
+	while (true)
+	{
+		xSemaphoreTake(i2c_mutex, portMAX_DELAY);
+		button_reader.init();
+		if (!button_reader.read())
+		{
+			printf("unsuccessful button I2C read\n");
+		}
+		xSemaphoreGive(i2c_mutex);
+
+		if (button_reader.button1_pressed())
+		{
+			printf("button1 - switch to NRF sender mode\n");
+			switch_role(TempMonitor::NRF_CLIENT);
+		}
+		else if (button_reader.button4_pressed())
+		{
+			printf("button4 - switch to MQTT client mode\n");
+			switch_role(TempMonitor::NRF_SERVER_AND_MQTT_CLIENT);
+		}
+
+		// check again after 200 ms
+		vTaskDelay(pdMS_TO_TICKS(200));
+	}
+
+}
+
 // Setup HW
 void user_setup_hw()
 {
@@ -168,6 +334,9 @@ void user_setup_hw()
 
 void other_setup()
 {
+	wifi_alive = xSemaphoreCreateBinary();
+	i2c_mutex = xSemaphoreCreateMutex();
+	publish_queue = xQueueCreate(TempMonitor::QUEUE_SIZE, sizeof(TempMonitor::Temperature_msg));
 	nrf_comm.init();
 	nrf_comm.disable();
 	temp_sensor.init();
@@ -176,24 +345,19 @@ void other_setup()
 extern "C" void user_init(void); // one way
 void user_init(void)
 {
+	device_role = TempMonitor::NRF_CLIENT;
 	// Setup HW
 	user_setup_hw();
 
 	other_setup();
 
-	vSemaphoreCreateBinary(wifi_alive);
+    xTaskCreate(button_poll_task, "button_poll_task", 256, nullptr, 2, nullptr);
+	xTaskCreate(read_temp_task, "read_temp_task", 512, nullptr, 2, &read_temp_task_handle);
+	xTaskCreate(send_nrf_task, "send_nrf_task", 512, nullptr, 2, &send_nrf_task_handle);
 
-    // Create user interface task
+	xTaskCreate(wifi_task, "wifi_task", 265, nullptr, 2, &wifi_task_handle);
+	vTaskSuspend(wifi_task_handle);
 
-	xTaskCreate(&wifi_task, "wifi_task", 265, nullptr, 2, nullptr);
-	//xTaskCreate(&mqtt_task, "mqtt_task", 1024, NULL, 4, NULL);
-	if (sender)
-	{
-		xTaskCreate(readTemp, "readTemp", 512, nullptr, 2, nullptr);
-	}
-	else
-	{
-		xTaskCreate(listenNrf, "listenNrf", 512, nullptr, 2, nullptr);
-	}
-
+	xTaskCreate(listen_nrf_task, "listen_nrf_task", 512, nullptr, 2, &listen_nrf_task_handle);
+	vTaskSuspend(listen_nrf_task_handle);
 }

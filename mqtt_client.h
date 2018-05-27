@@ -41,7 +41,11 @@ public:
      * @param msg_len message length.
      * @return <code>true</code> if the publish operation was successful, else returns <code>false</code>.
      */
-    bool publish(char * msg, const uint8_t msg_len);
+    bool publish(const char *const msg, const uint8_t msg_len);
+
+    bool yield();
+
+    void disconnect();
 
 private:
 
@@ -52,8 +56,6 @@ private:
     mqtt_client_t client;
 
     mqtt_packet_connect_data_t connection_data;
-
-    static constexpr int COMMAND_TIMEOUT_MS = 5000;
 
     uint8_t buffer[MQTT_BUFFER_LEN];
 

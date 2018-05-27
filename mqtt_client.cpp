@@ -25,7 +25,7 @@ bool TempMonitor::Mqtt_client::connect()
         return false;
     }
     printf("network connected to MQTT\n");
-    mqtt_client_new(&client, &network, COMMAND_TIMEOUT_MS, buffer, MQTT_BUFFER_LEN, read_buffer, MQTT_BUFFER_LEN);
+    mqtt_client_new(&client, &network, MQTT_COMMAND_TIMEOUT_MS, buffer, MQTT_BUFFER_LEN, read_buffer, MQTT_BUFFER_LEN);
 
     connection_data.willFlag = 0;
     connection_data.MQTTVersion = 3;
@@ -46,15 +46,15 @@ bool TempMonitor::Mqtt_client::connect()
     return true;
 }
 
-bool TempMonitor::Mqtt_client::publish(char * msg, const uint8_t msg_len)
+bool TempMonitor::Mqtt_client::publish(const char *const msg, const uint8_t msg_len)
 {
-    if (msg_len >= MQTT_ID_LEN)
+    if (msg_len >= MQTT_BUFFER_LEN)
     {
         printf("MQTT message too long for buffer size %d\n", MQTT_BUFFER_LEN);
         return false;
     }
     mqtt_message_t message;
-    message.payload = msg;
+    message.payload = const_cast<char *>(msg);
     message.payloadlen = msg_len;
     message.dup = 0;
     message.qos = MQTT_QOS1;
@@ -66,4 +66,16 @@ bool TempMonitor::Mqtt_client::publish(char * msg, const uint8_t msg_len)
         return false;
     }
     return true;
+}
+
+bool TempMonitor::Mqtt_client::yield()
+{
+    printf("MQTT yield()\n");
+    return mqtt_yield(&client, MQTT_COMMAND_TIMEOUT_MS) == MQTT_SUCCESS;
+}
+
+void TempMonitor::Mqtt_client::disconnect()
+{
+    printf("MQTT disconnect()\n");
+    mqtt_network_disconnect(&network);
 }

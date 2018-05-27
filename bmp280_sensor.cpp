@@ -35,5 +35,5 @@ float TempMonitor::Bmp280_temp_sensor::read()
 
 bool TempMonitor::Bmp280_temp_sensor::initI2C()
 {
-    return i2c_init(TempMonitor::I2C_BUS, TempMonitor::SCL, TempMonitor::SDA, I2C_FREQ_100K) == 0;
+    return i2c_init(TempMonitor::I2C_BUS, TempMonitor::SCL_PIN, TempMonitor::SDA_PIN, I2C_FREQ_100K) == 0;
 }
