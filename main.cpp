@@ -19,14 +19,12 @@
 #include <semphr.h>
 #include <cstring>
 #include "wifi_config/ssid_config.h"
+#include "mqtt_client.h"
 
-extern "C" {
-#include "paho_mqtt_c/MQTTESP8266.h"
-#include "paho_mqtt_c/MQTTClient.h"
-}
 
 TempMonitor::Bmp280_temp_sensor temp_sensor;
 TempMonitor::Nrf_comm nrf_comm;
+TempMonitor::Mqtt_client mqtt_client;
 
 SemaphoreHandle_t wifi_alive;
 
@@ -68,9 +66,32 @@ void listenNrf(void *pvParameters)
         {
             nrf_comm.init();
         }
+
 		if (nrf_comm.receive(buffer, sizeof(buffer)))
 		{
 			printf("NRF received: %s\n", buffer);
+
+			do
+			{
+				if (!mqtt_client.init("test", strlen("test")))
+				{
+					printf("unsuccessful client init\n");
+					break;
+				}
+				if (!mqtt_client.connect())
+				{
+					printf("unsuccessful client connect\n");
+					break;
+				}
+				if (!mqtt_client.publish("test_jure", strlen("test_jure")))
+				{
+					printf("unsuccessful client publish\n");
+					break;
+				}
+				printf("successful MQTT send\n");
+
+			} while (false);
+
 		}
         else
         {
