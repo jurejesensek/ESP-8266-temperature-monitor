@@ -43,6 +43,7 @@ bool TempMonitor::Mqtt_client::connect()
         return false;
     }
     printf("connected to MQTT\n");
+	conected = true;
     return true;
 }
 
@@ -71,11 +72,14 @@ bool TempMonitor::Mqtt_client::publish(const char *const msg, const uint8_t msg_
 bool TempMonitor::Mqtt_client::yield()
 {
     printf("MQTT yield()\n");
-    return mqtt_yield(&client, MQTT_COMMAND_TIMEOUT_MS) == MQTT_SUCCESS;
+	if(conected){
+		return mqtt_yield(&client, MQTT_COMMAND_TIMEOUT_MS) == MQTT_SUCCESS;
+	}
 }
 
 void TempMonitor::Mqtt_client::disconnect()
 {
     printf("MQTT disconnect()\n");
+	conected = false;
     mqtt_network_disconnect(&network);
 }
