@@ -107,11 +107,6 @@ void send_nrf_task(void *pvParameters)
 	while (true)
 	{
 		xSemaphoreTake(i2c_mutex, portMAX_DELAY);
-		nrf_comm.init();
-		if (!nrf_comm.isValid())
-		{
-			printf("NRF re-init was not successful\n");
-		}
 
 		while (uxQueueMessagesWaiting(publish_queue) != 0)
         {
@@ -129,7 +124,6 @@ void send_nrf_task(void *pvParameters)
             }
         }
         printf("finished with NRF sending\n");
-		nrf_comm.disable();
 		xSemaphoreGive(i2c_mutex);
 		vTaskDelay(pdMS_TO_TICKS(10000)); // sleep
 	}
@@ -143,8 +137,7 @@ void listen_nrf_task(void *pvParameters)
 	    printf("entering listen_nrf_task\n");
 		do
 		{
-			if (!mqtt_client.init(TempMonitor::MQTT_TEST_TOPIC,
-								  static_cast<uint8_t>(strlen(TempMonitor::MQTT_TEST_TOPIC))))
+			if (!mqtt_client.init(MQTT_TEST_TOPIC, static_cast<uint8_t>(strlen(MQTT_TEST_TOPIC))))
 			{
 				printf("unsuccessful client init\n");
 				break;
@@ -157,17 +150,11 @@ void listen_nrf_task(void *pvParameters)
 			}
 
 			xSemaphoreTake(i2c_mutex, portMAX_DELAY);
-            nrf_comm.init();
-
-            if (!nrf_comm.isValid())
-            {
-                printf("NRF re-initialisation was not successful\n");
-            }
 
 			// receive all messages
 			while (nrf_comm.receive(buffer, sizeof(buffer)))
 			{
-				printf("NRF received: %s\n", buffer);
+				printf("----NRF received: %s\n", buffer);
 				// publish received messages
 				if (!mqtt_client.publish(buffer, static_cast<const uint8_t>(strlen(buffer))))
 				{
@@ -338,7 +325,6 @@ void other_setup()
 	i2c_mutex = xSemaphoreCreateMutex();
 	publish_queue = xQueueCreate(TempMonitor::QUEUE_SIZE, sizeof(TempMonitor::Temperature_msg));
 	nrf_comm.init();
-	nrf_comm.disable();
 	temp_sensor.init();
 }
 

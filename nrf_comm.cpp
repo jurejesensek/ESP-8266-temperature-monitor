@@ -20,12 +20,6 @@ void TempMonitor::Nrf_comm::init()
     valid = v;
 }
 
-void TempMonitor::Nrf_comm::disable()
-{
-    gpio_write(CS_NRF, true);
-    valid = false;
-}
-
 bool TempMonitor::Nrf_comm::isValid() const
 {
     return valid;

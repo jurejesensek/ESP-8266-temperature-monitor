@@ -27,12 +27,6 @@ public:
     void init();
 
     /**
-     * Disables the module.
-     * Useful when using multiple devices on I2C.
-     */
-    void disable();
-
-    /**
      * Checks if the device is in a valid state.
      * @return <code>true</code> if the device is valid, else returns <code>false</code>.
      */

@@ -4,10 +4,21 @@
 namespace TempMonitor
 {
 
+/**
+ * In what role is the device currently in.
+ */
 enum Device_role
 {
+    /**
+     * Reads temperature and sends it via NRF.
+     */
     NRF_CLIENT,
+
+    /**
+     * Reads temperature, retrieves it from other devices (via NRF) and forwards all over MQTT.
+     */
     NRF_SERVER_AND_MQTT_CLIENT
+
 }; // enum
 
 } // namespace
