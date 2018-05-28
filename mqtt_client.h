@@ -60,6 +60,8 @@ private:
     uint8_t buffer[MQTT_BUFFER_LEN];
 
     uint8_t read_buffer[MQTT_BUFFER_LEN];
+	
+	bool conected;
 
 
 }; // class

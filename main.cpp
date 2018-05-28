@@ -183,7 +183,7 @@ void listen_nrf_task(void *pvParameters)
 		} while (false);
 
 		// todo use yield()
-		mqtt_client.disconnect();
+		mqtt_client.yield();
 
 		vTaskDelay(pdMS_TO_TICKS(10000));
 	}
@@ -240,6 +240,9 @@ void wifi_task(void *pvParameters)
 		}
 		printf("WiFi: disconnected\n");
 		sdk_wifi_station_disconnect();
+		retries = 30;
+		sdk_wifi_set_opmode(STATION_MODE);
+		sdk_wifi_station_set_config(&config);
 		vTaskDelay(5000 / portTICK_PERIOD_MS);
 	}
 }
