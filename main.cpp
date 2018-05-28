@@ -239,10 +239,10 @@ void wifi_task(void *pvParameters)
 			taskYIELD();
 		}
 		printf("WiFi: disconnected\n");
-		sdk_wifi_station_disconnect();
-		retries = 30;
-		sdk_wifi_set_opmode(STATION_MODE);
-		sdk_wifi_station_set_config(&config);
+		//sdk_wifi_station_disconnect();
+		//retries = 30;
+		//sdk_wifi_set_opmode(STATION_MODE);
+		//sdk_wifi_station_set_config(&config);
 		vTaskDelay(5000 / portTICK_PERIOD_MS);
 	}
 }
