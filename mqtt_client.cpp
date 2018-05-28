@@ -3,6 +3,11 @@
 #include "mqtt_client.h"
 #include "secret_constants.h"
 
+TempMonitor::Mqtt_client::Mqtt_client()
+{
+    connected = false;
+}
+
 bool TempMonitor::Mqtt_client::init(const char *const client_id, uint8_t client_id_len)
 {
     if (client_id_len >= MQTT_ID_LEN)
@@ -43,12 +48,17 @@ bool TempMonitor::Mqtt_client::connect()
         return false;
     }
     printf("connected to MQTT\n");
-	conected = true;
+	connected = true;
     return true;
 }
 
 bool TempMonitor::Mqtt_client::publish(const char *const msg, const uint8_t msg_len)
 {
+    if (!connected)
+    {
+        printf("MQTT connection is not established\n");
+        return false;
+    }
     if (msg_len >= MQTT_BUFFER_LEN)
     {
         printf("MQTT message too long for buffer size %d\n", MQTT_BUFFER_LEN);
@@ -72,14 +82,16 @@ bool TempMonitor::Mqtt_client::publish(const char *const msg, const uint8_t msg_
 bool TempMonitor::Mqtt_client::yield()
 {
     printf("MQTT yield()\n");
-	if(conected){
+	if (connected)
+	{
 		return mqtt_yield(&client, MQTT_COMMAND_TIMEOUT_MS) == MQTT_SUCCESS;
 	}
+    return false;
 }
 
 void TempMonitor::Mqtt_client::disconnect()
 {
     printf("MQTT disconnect()\n");
-	conected = false;
+	connected = false;
     mqtt_network_disconnect(&network);
 }

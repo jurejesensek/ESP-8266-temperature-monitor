@@ -134,7 +134,6 @@ void listen_nrf_task(void *pvParameters)
 	char buffer[TempMonitor::MESSAGE_LEN];
 	while (true)
 	{
-	    printf("entering listen_nrf_task\n");
 		do
 		{
 			if (!mqtt_client.init(MQTT_TEST_TOPIC, static_cast<uint8_t>(strlen(MQTT_TEST_TOPIC))))
@@ -145,7 +144,8 @@ void listen_nrf_task(void *pvParameters)
 			if (!mqtt_client.connect())
 			{
 				printf("unsuccessful client connect\n");
-				mqtt_client.disconnect();
+				// force wifi reconnect
+				// sdk_wifi_station_disconnect();
 				break;
 			}
 
@@ -180,10 +180,12 @@ void listen_nrf_task(void *pvParameters)
 			}
 			printf("published all local temperatures\n");
 
-		} while (false);
+            if(!mqtt_client.yield())
+            {
+                mqtt_client.disconnect();
+            }
 
-		// todo use yield()
-		mqtt_client.yield();
+        } while (false);
 
 		vTaskDelay(pdMS_TO_TICKS(10000));
 	}

@@ -21,6 +21,11 @@ class Mqtt_client
 
 public:
 
+	/**
+	 * Constructor.
+	 */
+	Mqtt_client();
+
     /**
      * Initialises MQTT client.
      * @param client_id ID of the client.
@@ -61,7 +66,7 @@ private:
 
     uint8_t read_buffer[MQTT_BUFFER_LEN];
 	
-	bool conected;
+	bool connected;
 
 
 }; // class
