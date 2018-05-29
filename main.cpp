@@ -180,10 +180,11 @@ void listen_nrf_task(void *pvParameters)
 			}
 			printf("published all local temperatures\n");
 
-            if(!mqtt_client.yield())
+		mqtt_client.disconnect();
+            /*if(!mqtt_client.yield())
             {
                 mqtt_client.disconnect();
-            }
+            }*/
 
         } while (false);
 
