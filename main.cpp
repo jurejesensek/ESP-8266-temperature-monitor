@@ -31,6 +31,7 @@ TempMonitor::Button_reader button_reader;
 
 TaskHandle_t wifi_task_handle;
 TaskHandle_t listen_nrf_task_handle;
+TaskHandle_t send_mqtt_task_handle;
 TaskHandle_t send_nrf_task_handle;
 TaskHandle_t read_temp_task_handle;
 
@@ -38,6 +39,8 @@ TaskHandle_t read_temp_task_handle;
 SemaphoreHandle_t wifi_alive;
 SemaphoreHandle_t i2c_mutex;
 QueueHandle_t publish_queue;
+
+bool wifi_connected;
 
 TempMonitor::Device_role device_role;
 
@@ -102,6 +105,54 @@ void read_temp_task(void *pvParameters)
 	}
 }
 
+void send_mqtt_task(void *pvParameters){
+	while (true)
+	{
+		if(wifi_connected){
+			if (!mqtt_client.init(MQTT_TEST_TOPIC, static_cast<uint8_t>(strlen(MQTT_TEST_TOPIC))))
+			{
+				printf("unsuccessful client init\n");
+				break;
+			}
+			if (!mqtt_client.connect())
+			{
+				printf("unsuccessful client connect\n");
+				// force wifi reconnect
+				// sdk_wifi_station_disconnect();
+				break;
+			}
+			
+			while(true){
+				while (uxQueueMessagesWaiting(publish_queue) != 0)
+				{
+					TempMonitor::Temperature_msg msg;
+					xQueueReceive(publish_queue, &msg, 0);
+					char message[TempMonitor::MESSAGE_LEN];
+					msg.getMessage(message, TempMonitor::MESSAGE_LEN);
+					if (!mqtt_client.publish(message, static_cast<const uint8_t>(strlen(message))))
+					{
+						printf("unsuccessful client publish: %s\n", message);
+						break;
+					}
+					printf("published %s\n", message);
+				}
+				printf("published all local temperatures\n");
+				
+				int ret = mqtt_client.yield();
+				printf("YIELD: %d \n", ret);
+				if(!ret || !wifi_connected)
+				{
+					mqtt_client.disconnect();
+					break;
+				}
+			
+			}
+		}
+		vTaskDelay(5000);
+	}
+
+}
+
 void send_nrf_task(void *pvParameters)
 {
 	while (true)
@@ -134,59 +185,19 @@ void listen_nrf_task(void *pvParameters)
 	char buffer[TempMonitor::MESSAGE_LEN];
 	while (true)
 	{
-		do
+
+		xSemaphoreTake(i2c_mutex, portMAX_DELAY);
+
+		// receive all messages
+		while (nrf_comm.receive(buffer, sizeof(buffer)))
 		{
-			if (!mqtt_client.init(MQTT_TEST_TOPIC, static_cast<uint8_t>(strlen(MQTT_TEST_TOPIC))))
-			{
-				printf("unsuccessful client init\n");
-				break;
-			}
-			if (!mqtt_client.connect())
-			{
-				printf("unsuccessful client connect\n");
-				// force wifi reconnect
-				// sdk_wifi_station_disconnect();
-				break;
-			}
-
-			xSemaphoreTake(i2c_mutex, portMAX_DELAY);
-
-			// receive all messages
-			while (nrf_comm.receive(buffer, sizeof(buffer)))
-			{
-				printf("----NRF received: %s\n", buffer);
-				// publish received messages
-				if (!mqtt_client.publish(buffer, static_cast<const uint8_t>(strlen(buffer))))
-				{
-					printf("unsuccessful client publish\n");
-					break;
-				}
-			}
-			xSemaphoreGive(i2c_mutex);
-			printf("no more NRF messages waiting\n");
-
-			while (uxQueueMessagesWaiting(publish_queue) != 0)
-			{
-				TempMonitor::Temperature_msg msg;
-				xQueueReceive(publish_queue, &msg, 0);
-				char message[TempMonitor::MESSAGE_LEN];
-				msg.getMessage(message, TempMonitor::MESSAGE_LEN);
-				if (!mqtt_client.publish(message, static_cast<const uint8_t>(strlen(message))))
-				{
-					printf("unsuccessful client publish: %s\n", message);
-					break;
-				}
-				printf("published %s\n", message);
-			}
-			printf("published all local temperatures\n");
-
-		mqtt_client.disconnect();
-            /*if(!mqtt_client.yield())
-            {
-                mqtt_client.disconnect();
-            }*/
-
-        } while (false);
+			printf("----NRF received: %s\n", buffer);
+			// publish received messages
+			xQueueSendToBack(publish_queue, buffer, 0);
+			
+		}
+		xSemaphoreGive(i2c_mutex);
+		printf("no more NRF messages waiting\n");
 
 		vTaskDelay(pdMS_TO_TICKS(10000));
 	}
@@ -233,15 +244,18 @@ void wifi_task(void *pvParameters)
 		{
 			printf("WiFi: Connected\n");
 			xSemaphoreGive(wifi_alive);
+			wifi_connected = true;
 			taskYIELD();
 		}
 
 		while (sdk_wifi_station_get_connect_status() == STATION_GOT_IP)
 		{
 			xSemaphoreGive(wifi_alive);
+			wifi_connected = true;
 			taskYIELD();
 		}
 		printf("WiFi: disconnected\n");
+		wifi_connected = false;
 		//sdk_wifi_station_disconnect();
 		//retries = 30;
 		//sdk_wifi_set_opmode(STATION_MODE);
@@ -263,6 +277,7 @@ void switch_role(TempMonitor::Device_role target_role)
         {
             device_role = TempMonitor::NRF_CLIENT;
             vTaskSuspend(listen_nrf_task_handle);
+            vTaskSuspend(send_mqtt_task_handle);
             vTaskSuspend(wifi_task_handle);
             vTaskResume(send_nrf_task_handle);
         }
@@ -278,6 +293,7 @@ void switch_role(TempMonitor::Device_role target_role)
             vTaskSuspend(send_nrf_task_handle);
             vTaskResume(wifi_task_handle);
             vTaskResume(listen_nrf_task_handle);
+            vTaskResume(send_mqtt_task_handle);
         }
         break;
 
@@ -337,6 +353,7 @@ void other_setup()
 extern "C" void user_init(void); // one way
 void user_init(void)
 {
+	wifi_connected = false;
 	device_role = TempMonitor::NRF_CLIENT;
 	// Setup HW
 	user_setup_hw();
@@ -352,4 +369,7 @@ void user_init(void)
 
 	xTaskCreate(listen_nrf_task, "listen_nrf_task", 512, nullptr, 2, &listen_nrf_task_handle);
 	vTaskSuspend(listen_nrf_task_handle);
+	
+	xTaskCreate(send_mqtt_task, "send_mqtt_task", 512, nullptr, 2, &send_mqtt_task_handle);
+	vTaskSuspend(send_mqtt_task_handle);
 }

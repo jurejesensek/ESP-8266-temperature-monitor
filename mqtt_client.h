@@ -52,6 +52,8 @@ public:
 
     void disconnect();
 
+    bool connected;
+
 private:
 
     char id[MQTT_ID_LEN];
@@ -65,8 +67,6 @@ private:
     uint8_t buffer[MQTT_BUFFER_LEN];
 
     uint8_t read_buffer[MQTT_BUFFER_LEN];
-	
-	bool connected;
 
 
 }; // class
