@@ -192,8 +192,10 @@ void listen_nrf_task(void *pvParameters)
 		while (nrf_comm.receive(buffer, sizeof(buffer)))
 		{
 			printf("----NRF received: %s\n", buffer);
-			// publish received messages
-			xQueueSendToBack(publish_queue, buffer, 0);
+			// parse received string
+			TempMonitor::Temperature_msg temperature_msg{buffer};
+			// put received messages into queue
+			xQueueSendToBack(publish_queue, &temperature_msg, 0);
 			
 		}
 		xSemaphoreGive(i2c_mutex);

@@ -38,6 +38,12 @@ public:
     Temperature_msg(char const * const msg_id, char const * const msg_temp);
 
     /**
+     * Constructor.
+     * @param msg_string string in format MAC_ADDRESS:TEMPERATURE.
+     */
+    explicit Temperature_msg(char *msg_string);
+
+    /**
      * Constructs a string from the stored fields.
      * Returns it via supplied buffer.
      * @param buffer buffer to store final string.

@@ -22,7 +22,7 @@ static constexpr int TEMPERATURE_STR_LEN = 10;
 // MAC:TEMP + overhead for \0 etc.
 static constexpr int MESSAGE_LEN = MAC_ADDRESS_STRING_LEN + TEMPERATURE_STR_LEN + 1;
 
-static constexpr int QUEUE_SIZE = 5;
+static constexpr int QUEUE_SIZE = 10;
 
 }
 
