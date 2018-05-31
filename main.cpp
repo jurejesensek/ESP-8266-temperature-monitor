@@ -108,48 +108,53 @@ void read_temp_task(void *pvParameters)
 void send_mqtt_task(void *pvParameters){
 	while (true)
 	{
-		if(wifi_connected){
-			if (!mqtt_client.init(MQTT_TEST_TOPIC, static_cast<uint8_t>(strlen(MQTT_TEST_TOPIC))))
-			{
-				printf("unsuccessful client init\n");
-				break;
-			}
-			if (!mqtt_client.connect())
-			{
-				printf("unsuccessful client connect\n");
-				// force wifi reconnect
-				// sdk_wifi_station_disconnect();
-				break;
-			}
-			
-			while(true){
-				while (uxQueueMessagesWaiting(publish_queue) != 0)
+		do {
+			if(wifi_connected){
+				if (!mqtt_client.init(MQTT_TEST_TOPIC, static_cast<uint8_t>(strlen(MQTT_TEST_TOPIC))))
 				{
-					TempMonitor::Temperature_msg msg;
-					xQueueReceive(publish_queue, &msg, 0);
-					char message[TempMonitor::MESSAGE_LEN];
-					msg.getMessage(message, TempMonitor::MESSAGE_LEN);
-					if (!mqtt_client.publish(message, static_cast<const uint8_t>(strlen(message))))
-					{
-						printf("unsuccessful client publish: %s\n", message);
-						break;
-					}
-					printf("published %s\n", message);
-				}
-				printf("published all local temperatures\n");
-				
-				int ret = mqtt_client.yield();
-				printf("YIELD: %d \n", ret);
-				if(!ret || !wifi_connected)
-				{
-					mqtt_client.disconnect();
+					printf("unsuccessful client init\n");
 					break;
 				}
-			
+				if (!mqtt_client.connect())
+				{
+					printf("unsuccessful client connect\n");
+					// force wifi reconnect
+					// sdk_wifi_station_disconnect();
+					break;
+				}
+				
+				while(true){
+					while (uxQueueMessagesWaiting(publish_queue) != 0)
+					{
+						TempMonitor::Temperature_msg msg;
+						xQueueReceive(publish_queue, &msg, 0);
+						char message[TempMonitor::MESSAGE_LEN];
+						msg.getMessage(message, TempMonitor::MESSAGE_LEN);
+						if (!mqtt_client.publish(message, static_cast<const uint8_t>(strlen(message))))
+						{
+							printf("unsuccessful client publish: %s\n", message);
+							break;
+						}
+						printf("published %s\n", message);
+					}
+					printf("published all local temperatures\n");
+					
+					int ret = mqtt_client.yield();
+					printf("YIELD: %d \n", ret);
+					if(!ret || !wifi_connected)
+					{
+						mqtt_client.disconnect();
+						break;
+					}
+				
+				}
 			}
-		}
-		vTaskDelay(5000);
+		
+		} while (false);
+		printf("MQTT sleep\n");
+		vTaskDelay(pdMS_TO_TICKS(5000));
 	}
+	printf("This must not happen\n\n\n");
 
 }
 
