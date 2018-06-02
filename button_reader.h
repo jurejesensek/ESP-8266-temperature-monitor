@@ -15,7 +15,7 @@ class Button_reader
 public:
 
     /**
-     * Initialises.
+     * Initialises the interface.
      */
     void init();
 

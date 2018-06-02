@@ -3,11 +3,6 @@
 #include "nrf_comm.h"
 #include "constants.h"
 
-TempMonitor::Nrf_comm::Nrf_comm()
-{
-    valid = false;
-}
-
 void TempMonitor::Nrf_comm::init()
 {
     uart_set_baud(0, BAUD_RATE);
@@ -15,23 +10,12 @@ void TempMonitor::Nrf_comm::init()
     gpio_enable(CS_NRF, GPIO_OUTPUT);
 
     // radio config
-    bool v = radio.begin();
+    radio.begin();
     radio.setChannel(CHANNEL);
-    valid = v;
-}
-
-bool TempMonitor::Nrf_comm::isValid() const
-{
-    return valid;
 }
 
 bool TempMonitor::Nrf_comm::send(char * data, uint8_t len)
 {
-    if (!valid)
-    {
-        printf("send(): device not valid\n");
-        return false;
-    }
     radio.stopListening();
     radio.openWritingPipe(ADDRESS);
     return radio.write(data, len);
@@ -40,11 +24,6 @@ bool TempMonitor::Nrf_comm::send(char * data, uint8_t len)
 
 bool TempMonitor::Nrf_comm::receive(char *buffer, uint8_t len)
 {
-    if (!valid)
-    {
-        printf("receive(): device not valid\n");
-        return false;
-    }
     radio.openReadingPipe(1, ADDRESS);
     radio.startListening();
     if (radio.available())

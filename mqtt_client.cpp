@@ -79,12 +79,12 @@ bool TempMonitor::Mqtt_client::publish(const char *const msg, const uint8_t msg_
     return true;
 }
 
-bool TempMonitor::Mqtt_client::yield()
+bool TempMonitor::Mqtt_client::yield(uint32_t duration_ms)
 {
     printf("MQTT yield()\n");
 	if (connected)
 	{
-		return mqtt_yield(&client, MQTT_COMMAND_TIMEOUT_MS) == MQTT_SUCCESS;
+		return mqtt_yield(&client, duration_ms) == MQTT_SUCCESS;
 	}
     return false;
 }

@@ -19,18 +19,12 @@ public:
     /**
      * Constructor.
      */
-    Nrf_comm();
+    Nrf_comm() = default;
 
     /**
      * Prepares the module for communication.
      */
     void init();
-
-    /**
-     * Checks if the device is in a valid state.
-     * @return <code>true</code> if the device is valid, else returns <code>false</code>.
-     */
-    bool isValid() const;
 
     /**
      * Sends data.
@@ -63,8 +57,6 @@ private:
     static constexpr int CHANNEL = 33;
 
     const uint8_t ADDRESS[5] = {0x01, 0x23, 0x45, 0x67, 0x89};
-
-    bool valid;
 
 }; // class
 

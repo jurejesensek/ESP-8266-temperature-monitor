@@ -48,8 +48,16 @@ public:
      */
     bool publish(const char *const msg, const uint8_t msg_len);
 
-    bool yield();
+    /**
+     * Keeps the connection with the broker alive and blocks execution.
+     * @param duration_ms time to block execution.
+     * @return <code>true</code> if the yield was successful.
+     */
+	bool yield(const uint32_t duration_ms = MQTT_COMMAND_TIMEOUT_MS);
 
+	/**
+	 * Sends an MQTT disconnect packet to the broker.
+	 */
     void disconnect();
 
 private:
@@ -67,7 +75,6 @@ private:
     uint8_t read_buffer[MQTT_BUFFER_LEN];
 
     bool connected;
-
 
 }; // class
 
