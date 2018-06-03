@@ -7,7 +7,7 @@ namespace TempMonitor
 /**
  * In what role is the device currently in.
  */
-enum Device_role
+enum class Device_role
 {
     /**
      * Reads temperature and sends it via NRF.

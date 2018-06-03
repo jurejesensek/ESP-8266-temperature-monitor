@@ -109,7 +109,8 @@ void send_mqtt_task(void *pvParameters){
 	while (true)
 	{
 		do {
-			if(wifi_connected){
+			if (wifi_connected)
+			{
 				if (!mqtt_client.init(MQTT_TEST_TOPIC, static_cast<uint8_t>(strlen(MQTT_TEST_TOPIC))))
 				{
 					printf("unsuccessful client init\n");
@@ -118,12 +119,11 @@ void send_mqtt_task(void *pvParameters){
 				if (!mqtt_client.connect())
 				{
 					printf("unsuccessful client connect\n");
-					// force wifi reconnect
-					// sdk_wifi_station_disconnect();
 					break;
 				}
 				
-				while(true){
+				while(true)
+				{
 					while (uxQueueMessagesWaiting(publish_queue) != 0)
 					{
 						TempMonitor::Temperature_msg msg;
@@ -139,8 +139,9 @@ void send_mqtt_task(void *pvParameters){
 					}
 					printf("published all local temperatures\n");
 					
-					int ret = mqtt_client.yield();
-					printf("YIELD: %d \n", ret);
+					bool ret = mqtt_client.yield();
+					printf("YIELD: %d\n", ret);
+
 					if(!ret || !wifi_connected)
 					{
 						mqtt_client.disconnect();
@@ -151,11 +152,10 @@ void send_mqtt_task(void *pvParameters){
 			}
 		
 		} while (false);
+
 		printf("MQTT sleep\n");
 		vTaskDelay(pdMS_TO_TICKS(5000));
 	}
-	printf("This must not happen\n\n\n");
-
 }
 
 void send_nrf_task(void *pvParameters)
@@ -263,10 +263,6 @@ void wifi_task(void *pvParameters)
 		}
 		printf("WiFi: disconnected\n");
 		wifi_connected = false;
-		//sdk_wifi_station_disconnect();
-		//retries = 30;
-		//sdk_wifi_set_opmode(STATION_MODE);
-		//sdk_wifi_station_set_config(&config);
 		vTaskDelay(5000 / portTICK_PERIOD_MS);
 	}
 }
@@ -275,28 +271,28 @@ void switch_role(TempMonitor::Device_role target_role)
 {
     switch (target_role)
     {
-    case TempMonitor::NRF_CLIENT:
-        if (device_role == TempMonitor::NRF_CLIENT)
+	case TempMonitor::Device_role::NRF_CLIENT:
+        if (device_role == TempMonitor::Device_role::NRF_CLIENT)
         {
             printf("already in NRF client mode\n");
         }
         else
         {
-            device_role = TempMonitor::NRF_CLIENT;
+            device_role = TempMonitor::Device_role::NRF_CLIENT;
             vTaskSuspend(listen_nrf_task_handle);
             vTaskSuspend(send_mqtt_task_handle);
             vTaskSuspend(wifi_task_handle);
             vTaskResume(send_nrf_task_handle);
         }
         break;
-    case TempMonitor::NRF_SERVER_AND_MQTT_CLIENT:
-        if (device_role == TempMonitor::NRF_SERVER_AND_MQTT_CLIENT)
+    case TempMonitor::Device_role::NRF_SERVER_AND_MQTT_CLIENT:
+        if (device_role == TempMonitor::Device_role::NRF_SERVER_AND_MQTT_CLIENT)
         {
             printf("already in MQTT client mode\n");
         }
         else
         {
-            device_role = TempMonitor::NRF_SERVER_AND_MQTT_CLIENT;
+            device_role = TempMonitor::Device_role::NRF_SERVER_AND_MQTT_CLIENT;
             vTaskSuspend(send_nrf_task_handle);
             vTaskResume(wifi_task_handle);
             vTaskResume(listen_nrf_task_handle);
@@ -324,12 +320,12 @@ void button_poll_task(void *pvParameter)
 		if (button_reader.button1_pressed())
 		{
 			printf("button1 - switch to NRF sender mode\n");
-			switch_role(TempMonitor::NRF_CLIENT);
+			switch_role(TempMonitor::Device_role::NRF_CLIENT);
 		}
 		else if (button_reader.button4_pressed())
 		{
 			printf("button4 - switch to MQTT client mode\n");
-			switch_role(TempMonitor::NRF_SERVER_AND_MQTT_CLIENT);
+			switch_role(TempMonitor::Device_role::NRF_SERVER_AND_MQTT_CLIENT);
 		}
 
 		// check again after 200 ms
@@ -361,7 +357,7 @@ extern "C" void user_init(void); // one way
 void user_init(void)
 {
 	wifi_connected = false;
-	device_role = TempMonitor::NRF_CLIENT;
+	device_role = TempMonitor::Device_role::NRF_CLIENT;
 	// Setup HW
 	user_setup_hw();
 
